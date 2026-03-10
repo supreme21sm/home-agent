@@ -1,0 +1,18 @@
+[Unit]
+Description=Home Agent Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=seongmin-choi
+WorkingDirectory=/home/seongmin-choi/home-agent
+ExecStart=/home/seongmin-choi/home-agent/venv/bin/python -m bot.main
+EnvironmentFile=/home/seongmin-choi/home-agent/.env
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
