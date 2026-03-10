@@ -65,7 +65,7 @@ bot/
 ### Configuration
 
 All config is via environment variables (see `.env.example`). Key settings:
-- `CLAUDE_TIMEOUT` / `CLAUDE_MAX_TURNS`: Control Claude CLI execution limits
+- `CLAUDE_CHUNK_TIMEOUT` (default 300s) / `CLAUDE_TOTAL_TIMEOUT` (default 600s) / `CLAUDE_MAX_TURNS`: Control Claude CLI execution limits
 - `CLAUDE_CWD`: Working directory for Claude CLI subprocess (defaults to home dir)
 - `MEMORY_CONTEXT_COUNT`: Number of recent messages included as conversation context (default 20)
 - `NEWS_HOUR` / `NEWS_MINUTE`: Daily news delivery time in KST

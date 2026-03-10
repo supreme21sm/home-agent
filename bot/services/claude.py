@@ -45,17 +45,26 @@ async def ask_claude_stream(
         )
 
         has_output = False
+        start_time = asyncio.get_event_loop().time()
 
         while True:
+            # 전체 타임아웃 체크
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= config.claude_total_timeout:
+                logger.error("Claude CLI 전체 타임아웃 (%ds)", config.claude_total_timeout)
+                proc.kill()
+                yield f"\n⚠️ 전체 응답 시간 초과 ({config.claude_total_timeout}초)"
+                return
+
             try:
                 data = await asyncio.wait_for(
                     proc.stdout.read(CHUNK_SIZE),
-                    timeout=config.claude_timeout,
+                    timeout=config.claude_chunk_timeout,
                 )
             except asyncio.TimeoutError:
-                logger.error("Claude CLI 스트리밍 타임아웃 (%ds)", config.claude_timeout)
+                logger.error("Claude CLI 청크 타임아웃 (%ds)", config.claude_chunk_timeout)
                 proc.kill()
-                yield f"⚠️ 응답 시간 초과 ({config.claude_timeout}초)"
+                yield f"\n⚠️ 응답 대기 시간 초과 ({config.claude_chunk_timeout}초간 출력 없음)"
                 return
 
             if not data:
