@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from bot.services.memory import clear_context
-from bot.services.news import fetch_ai_news, format_news
+from bot.services.news import fetch_news_by_category, format_news, NEWS_CATEGORIES
 
 logger = logging.getLogger(__name__)
 router = Router(name="commands")
@@ -49,7 +49,8 @@ async def cmd_clear(message: Message) -> None:
 
 @router.message(Command("news"))
 async def cmd_news(message: Message) -> None:
-    await message.answer("📡 AI 뉴스를 수집 중입니다...")
-    items = await fetch_ai_news()
-    text = format_news(items)
-    await message.answer(text, disable_web_page_preview=True)
+    await message.answer("📡 뉴스를 수집 중입니다 (AI/정치/경제/사회)...")
+    for category in NEWS_CATEGORIES:
+        items = await fetch_news_by_category(category)
+        text = format_news(items, category)
+        await message.answer(text, disable_web_page_preview=True)

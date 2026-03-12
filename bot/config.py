@@ -32,7 +32,7 @@ class Config:
 
     # News
     news_hour: int = field(default_factory=lambda: int(os.environ.get("NEWS_HOUR", "9")))
-    news_minute: int = field(default_factory=lambda: int(os.environ.get("NEWS_MINUTE", "0")))
+    news_minute: int = field(default_factory=lambda: int(os.environ.get("NEWS_MINUTE", "30")))
 
 
 config = Config()
