@@ -46,6 +46,7 @@ async def ask_claude_stream(
 
         has_output = False
         start_time = asyncio.get_event_loop().time()
+        leftover = b""  # 잘린 멀티바이트 문자 버퍼
 
         while True:
             # 전체 타임아웃 체크
@@ -68,12 +69,43 @@ async def ask_claude_stream(
                 return
 
             if not data:
+                # 남은 버퍼 처리
+                if leftover:
+                    yield leftover.decode("utf-8", errors="replace")
                 break
 
-            text = data.decode("utf-8", errors="replace")
-            if text:
-                has_output = True
-                yield text
+            data = leftover + data
+            # 끝에서 잘린 멀티바이트 문자가 있는지 확인
+            # UTF-8 continuation byte(0x80-0xBF)로 끝나는 불완전 시퀀스 처리
+            cut = 0
+            if data and data[-1] & 0x80:  # 마지막 바이트가 ASCII가 아닌 경우
+                # 뒤에서부터 시작 바이트를 찾아 완전한 문자인지 확인
+                for i in range(min(4, len(data)), 0, -1):
+                    byte = data[-i]
+                    if byte & 0xC0 != 0x80:  # 시작 바이트 발견
+                        if byte & 0xE0 == 0xC0:
+                            expected = 2
+                        elif byte & 0xF0 == 0xE0:
+                            expected = 3
+                        elif byte & 0xF8 == 0xF0:
+                            expected = 4
+                        else:
+                            expected = 1
+                        if i < expected:  # 불완전한 시퀀스
+                            cut = i
+                        break
+
+            if cut:
+                leftover = data[-cut:]
+                data = data[:-cut]
+            else:
+                leftover = b""
+
+            if data:
+                text = data.decode("utf-8", errors="replace")
+                if text:
+                    has_output = True
+                    yield text
 
         await proc.wait()
 
