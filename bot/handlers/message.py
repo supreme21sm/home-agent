@@ -1,8 +1,8 @@
 import asyncio
 import logging
-import time
 
 from aiogram import Bot, Router
+from aiogram.enums import ParseMode
 from aiogram.types import Message
 
 from bot.services.claude import ask_claude_stream
@@ -11,10 +11,6 @@ from bot.utils.formatter import split_message
 
 logger = logging.getLogger(__name__)
 router = Router(name="messages")
-
-# 스트리밍 설정
-FLUSH_INTERVAL = 3.0  # 초 단위: 이 간격마다 중간 메시지 전송
-FLUSH_MIN_LENGTH = 50  # 최소 이 길이 이상 쌓여야 중간 전송
 
 
 async def _keep_typing(bot: Bot, chat_id: int, stop: asyncio.Event) -> None:
@@ -33,7 +29,7 @@ async def _keep_typing(bot: Bot, chat_id: int, stop: asyncio.Event) -> None:
 
 @router.message()
 async def handle_message(message: Message, bot: Bot) -> None:
-    """일반 텍스트 메시지를 Claude에 전달하고 스트리밍으로 응답한다."""
+    """일반 텍스트 메시지를 Claude에 전달하고 완성된 응답을 한 번에 보낸다."""
     text = message.text
     if not text:
         return
@@ -52,35 +48,21 @@ async def handle_message(message: Message, bot: Bot) -> None:
         # 사용자 메시지 저장
         await save_message(user_id, "user", text)
 
-        # 스트리밍으로 Claude 호출
-        full_response = []
-        pending_buffer = []
-        last_flush_time = time.monotonic()
-
+        # Claude 호출 — 전체 응답을 모은 후 한 번에 전송
+        chunks = []
         async for chunk in ask_claude_stream(text, conversation_context=context):
-            full_response.append(chunk)
-            pending_buffer.append(chunk)
+            chunks.append(chunk)
 
-            now = time.monotonic()
-            pending_text = "".join(pending_buffer)
+        response = "".join(chunks)
 
-            # 일정 간격마다 중간 메시지 전송
-            if (now - last_flush_time >= FLUSH_INTERVAL
-                    and len(pending_text) >= FLUSH_MIN_LENGTH):
-                for part in split_message(pending_text):
-                    await message.answer(part)
-                pending_buffer.clear()
-                last_flush_time = now
-
-        # 남은 텍스트 전송
-        remaining = "".join(pending_buffer)
-        if remaining:
-            for part in split_message(remaining):
-                await message.answer(part)
-
-        # 전체 응답 저장
-        response = "".join(full_response)
         if response:
+            for part in split_message(response):
+                try:
+                    await message.reply(part, parse_mode=ParseMode.MARKDOWN)
+                except Exception:
+                    # Markdown 파싱 실패 시 plain text로 전송
+                    await message.reply(part)
+
             await save_message(user_id, "assistant", response)
 
         logger.info("응답 전송 완료: user=%d, len=%d", user_id, len(response))

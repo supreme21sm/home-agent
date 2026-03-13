@@ -22,9 +22,6 @@ class Config:
     pg_db: str = field(default_factory=lambda: os.environ.get("POSTGRES_DB", "claude_memory"))
 
     # Claude Code CLI
-    claude_chunk_timeout: int = field(default_factory=lambda: int(os.environ.get("CLAUDE_CHUNK_TIMEOUT", "300")))
-    claude_total_timeout: int = field(default_factory=lambda: int(os.environ.get("CLAUDE_TOTAL_TIMEOUT", "600")))
-    claude_max_turns: int = field(default_factory=lambda: int(os.environ.get("CLAUDE_MAX_TURNS", "10")))
     claude_cwd: str = field(default_factory=lambda: os.environ.get("CLAUDE_CWD", "/home/seongmin-choi"))
 
     # Memory
