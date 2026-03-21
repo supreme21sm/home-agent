@@ -34,8 +34,8 @@ GOOGLE_NEWS_AI_RSS = (
     "&hl=en-US&gl=US&ceid=US:en"
 )
 
-# ── 네이버 랭킹 뉴스 (많이 본 뉴스) ─────────────────────────
-NAVER_RANKING_URL = "https://news.naver.com/main/ranking/popularDay.naver"
+# ── 네이버 섹션 뉴스 ──────────────────────────────────────────
+NAVER_SECTION_URL = "https://news.naver.com/section/{}"
 NAVER_SECTION_IDS = {
     "politics": 100,
     "economy": 101,
@@ -168,13 +168,13 @@ async def _collect_ai_news() -> list[dict]:
 
 # ── 네이버 랭킹 뉴스 ────────────────────────────────────────
 
-async def _collect_naver_ranking(category: str) -> list[dict]:
-    """네이버 많이 본 뉴스에서 카테고리별 기사 수집"""
+async def _collect_naver_section(category: str) -> list[dict]:
+    """네이버 섹션 뉴스에서 카테고리별 기사 수집"""
     section_id = NAVER_SECTION_IDS.get(category)
     if section_id is None:
         return []
 
-    url = f"{NAVER_RANKING_URL}?sectionId={section_id}"
+    url = NAVER_SECTION_URL.format(section_id)
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -190,49 +190,43 @@ async def _collect_naver_ranking(category: str) -> list[dict]:
             ) as resp:
                 html = await resp.text()
     except Exception as e:
-        logger.warning("네이버 랭킹 뉴스 수집 실패 (%s): %s", category, e)
+        logger.warning("네이버 섹션 뉴스 수집 실패 (%s): %s", category, e)
         return []
 
-    return _parse_naver_ranking(html)
+    return _parse_naver_section(html)
 
 
-def _parse_naver_ranking(html: str) -> list[dict]:
-    """네이버 랭킹 뉴스 HTML 파싱"""
-    soup = BeautifulSoup(html, "lxml")
+def _parse_naver_section(html: str) -> list[dict]:
+    """네이버 섹션 뉴스 HTML 파싱"""
+    soup = BeautifulSoup(html, "html.parser")
     items = []
     now = datetime.now(KST)
 
-    # 언론사별 랭킹 기사 수집
-    for article in soup.select(".rankingnews_box"):
-        press_name_tag = article.select_one(".rankingnews_name")
-        press_name = press_name_tag.get_text(strip=True) if press_name_tag else ""
+    for article in soup.select(".sa_item"):
+        title_tag = article.select_one(".sa_text_title")
+        if not title_tag:
+            continue
+        title = title_tag.get_text(strip=True)
+        href = title_tag.get("href", "")
+        if not title or not href:
+            continue
 
-        for li in article.select(".rankingnews_list li"):
-            link_tag = li.select_one("a")
-            if not link_tag:
-                continue
-            title = link_tag.get_text(strip=True)
-            href = link_tag.get("href", "")
-            if not title or not href:
-                continue
+        press_tag = article.select_one(".sa_text_press")
+        press_name = press_tag.get_text(strip=True) if press_tag else "네이버"
 
-            if href.startswith("/"):
-                href = "https://news.naver.com" + href
-
-            items.append({
-                "source": press_name or "네이버",
-                "title": title,
-                "link": href,
-                "published": now,  # 랭킹 뉴스는 현재 시점 기준
-            })
+        items.append({
+            "source": press_name,
+            "title": title,
+            "link": href,
+            "published": now,
+        })
 
     # 중복 제거
     seen = set()
     unique = []
     for item in items:
-        key = item["title"]
-        if key not in seen:
-            seen.add(key)
+        if item["title"] not in seen:
+            seen.add(item["title"])
             unique.append(item)
 
     return unique[:MAX_TOTAL_ITEMS]
@@ -252,7 +246,7 @@ async def fetch_news_by_category(category: str) -> list[dict]:
     if category == "ai":
         return await _collect_ai_news()
 
-    return await _collect_naver_ranking(category)
+    return await _collect_naver_section(category)
 
 
 async def _translate_titles(items: list[dict]) -> list[dict]:
